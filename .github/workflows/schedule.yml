@@ -1,0 +1,35 @@
+name: Orot Scheduler
+
+on:
+  schedule:
+    - cron: "0 4 * * 0-4"  # 07:00 שעון ישראל קיץ (UTC+3), ראשון–חמישי
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger orot-daily
+        run: |
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.OROT_PAT }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/yedidyat/orot-daily/actions/workflows/daily.yml/dispatches \
+            -d '{"ref":"main"}')
+          echo "dispatch status: $HTTP"
+          [ "$HTTP" = "204" ] || exit 1
+
+      - name: Keepalive commit (prevents GitHub disabling the schedule)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          date -u >> keepalive.txt
+          git add keepalive.txt
+          git commit -m "keepalive: $(date -u +%Y-%m-%d)"
+          git push
